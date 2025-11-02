@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # MatchX Matching Engine Build Script
-# Provides convenient interface for building, testing, and running the library
+# Uses build/ directory for all artifacts (CMake-style)
 
-set -e  # Exit on error
+set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Default values
 CONFIG="release"
@@ -26,22 +26,14 @@ JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Build directory
+BUILD_DIR="build"
+
 # Print colored message
-print_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Print usage
 usage() {
@@ -52,7 +44,7 @@ Usage: $0 [OPTIONS]
 
 ${YELLOW}Actions:${NC}
   --clean              Clean all build artifacts
-  --generate           Generate build files with premake
+  --generate           Generate build files (in build/)
   --build              Build the library and examples
   --rebuild            Clean + Generate + Build
   --test               Run Python tests
@@ -61,8 +53,8 @@ ${YELLOW}Actions:${NC}
   --all                Build and run tests and examples
 
 ${YELLOW}Configuration:${NC}
-  --debug              Build in debug mode (default: release)
-  --release            Build in release mode
+  --debug              Build in debug mode
+  --release            Build in release mode (default)
   
 ${YELLOW}Compiler:${NC}
   --gcc                Use GCC compiler (default)
@@ -74,17 +66,10 @@ ${YELLOW}Options:${NC}
   -h, --help           Show this help message
 
 ${YELLOW}Examples:${NC}
-  $0 --clean --build --test           # Clean, build, and test
-  $0 --rebuild --release --clang      # Rebuild in release with clang
-  $0 --all                            # Build and run everything
-  $0 --debug --build --examples       # Debug build and run examples
-  $0 --benchmark                      # Run performance benchmark
-
-${YELLOW}Premake Actions:${NC}
-  gmake2               Generate GNU Makefiles (Linux/macOS)
-  vs2022               Generate Visual Studio 2022 solution
-  vs2019               Generate Visual Studio 2019 solution
-  xcode4               Generate Xcode project
+  $0 --rebuild --test              # Clean build and test
+  $0 --release --build             # Release build
+  $0 --all                         # Build and run everything
+  $0 --clean                       # Clean build directory
 
 EOF
     exit 0
@@ -92,21 +77,8 @@ EOF
 
 # Clean build artifacts
 clean() {
-    print_info "Cleaning build artifacts..."
-    
-    # Remove build directories
-    rm -rf bin obj build
-    
-    # Remove premake generated files
-    rm -f *.sln *.vcxproj *.vcxproj.filters *.vcxproj.user
-    rm -f *.workspace *.make Makefile
-    rm -rf *.xcodeproj *.xcworkspace
-    
-    # Remove Python cache
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete 2>/dev/null || true
-    
+    print_info "Cleaning build directory..."
+    rm -rf "$BUILD_DIR"
     print_success "Clean complete"
 }
 
@@ -126,14 +98,14 @@ detect_platform() {
     case "$(uname -s)" in
         Linux*)     PLATFORM="linux";;
         Darwin*)    PLATFORM="macosx";;
-        MINGW*|MSYS*|CYGWIN*)     PLATFORM="windows";;
+        MINGW*|MSYS*|CYGWIN*) PLATFORM="windows";;
         *)          PLATFORM="unknown";;
     esac
 }
 
 # Generate build files
 generate() {
-    print_info "Generating build files..."
+    print_info "Generating build files in $BUILD_DIR/..."
     check_premake
     detect_platform
     
@@ -148,7 +120,7 @@ generate() {
     
     print_info "Using compiler: $CC / $CXX"
     
-    # Generate appropriate build files for platform
+    # Generate build files
     case "$PLATFORM" in
         linux|macosx)
             premake5 gmake2
@@ -162,23 +134,28 @@ generate() {
             ;;
     esac
     
-    print_success "Build files generated"
+    print_success "Build files generated in $BUILD_DIR/"
 }
 
 # Build the project
 build() {
     print_info "Building MatchEngine (config: $CONFIG, compiler: $COMPILER)..."
     
-    if [ ! -f "Makefile" ] && [ ! -f "*.sln" ]; then
-        print_warning "Build files not found, generating..."
+    if [ ! -d "$BUILD_DIR" ]; then
+        print_warning "Build directory not found, generating..."
         generate
     fi
     
     detect_platform
     
+    cd "$BUILD_DIR"
+    
     # Build based on platform
     case "$PLATFORM" in
         linux|macosx)
+
+            MAKE_CONFIG=$(echo "$CONFIG" | tr '[:upper:]' '[:lower:]')
+
             if [ "$VERBOSE" = true ]; then
                 make config=$CONFIG -j$JOBS verbose=1
             else
@@ -186,24 +163,21 @@ build() {
             fi
             ;;
         windows)
-            print_error "For Windows, please open the .sln file in Visual Studio"
+            print_error "For Windows, please open build/*.sln in Visual Studio"
             exit 1
             ;;
     esac
     
-    print_success "Build complete"
+    cd ..
     
-    # Show build output location
-    detect_platform
-    BUILD_DIR="bin/${CONFIG^}-$PLATFORM-x86_64"
-    print_info "Binaries located in: $BUILD_DIR"
+    print_success "Build complete"
+    print_info "Binaries located in: $BUILD_DIR/bin/$CONFIG/"
 }
 
 # Run Python tests
 run_tests() {
     print_info "Running tests..."
     
-    # Check if pytest is installed
     if ! command -v pytest &> /dev/null; then
         print_error "pytest is not installed"
         echo "Install with: pip install pytest cffi"
@@ -212,14 +186,13 @@ run_tests() {
     
     # Check if library exists
     detect_platform
-    BUILD_DIR="bin/${CONFIG^}-$PLATFORM-x86_64"
     
     if [ "$PLATFORM" = "macosx" ]; then
-        LIB_FILE="$BUILD_DIR/libmatchengine.dylib"
+        LIB_FILE="$BUILD_DIR/bin/$CONFIG/libMatchEngine.dylib"
     elif [ "$PLATFORM" = "linux" ]; then
-        LIB_FILE="$BUILD_DIR/libmatchengine.so"
+        LIB_FILE="$BUILD_DIR/bin/$CONFIG/libMatchEngine.so"
     else
-        LIB_FILE="$BUILD_DIR/matchengine.dll"
+        LIB_FILE="$BUILD_DIR/bin/$CONFIG/MatchEngine.dll"
     fi
     
     if [ ! -f "$LIB_FILE" ]; then
@@ -230,7 +203,6 @@ run_tests() {
     
     cd tests/
     
-    # Run tests with pytest
     if [ "$VERBOSE" = true ]; then
         pytest -v --tb=short
     else
@@ -247,8 +219,7 @@ run_examples() {
     print_info "Running examples..."
     
     detect_platform
-    BUILD_DIR="bin/${CONFIG^}-$PLATFORM-x86_64"
-    EXAMPLE_DIR="$BUILD_DIR/examples"
+    EXAMPLE_DIR="$BUILD_DIR/bin/$CONFIG"
     
     if [ ! -d "$EXAMPLE_DIR" ]; then
         print_error "Examples not found: $EXAMPLE_DIR"
@@ -258,9 +229,9 @@ run_examples() {
     
     # Set library path
     if [ "$PLATFORM" = "macosx" ]; then
-        export DYLD_LIBRARY_PATH="$BUILD_DIR:$DYLD_LIBRARY_PATH"
+        export DYLD_LIBRARY_PATH="$EXAMPLE_DIR:$DYLD_LIBRARY_PATH"
     else
-        export LD_LIBRARY_PATH="$BUILD_DIR:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="$EXAMPLE_DIR:$LD_LIBRARY_PATH"
     fi
     
     # Run BasicExample
@@ -285,8 +256,7 @@ run_benchmark() {
     print_info "Running benchmark..."
     
     detect_platform
-    BUILD_DIR="bin/${CONFIG^}-$PLATFORM-x86_64"
-    EXAMPLE_DIR="$BUILD_DIR/examples"
+    EXAMPLE_DIR="$BUILD_DIR/bin/$CONFIG"
     
     if [ ! -f "$EXAMPLE_DIR/Benchmark" ]; then
         print_error "Benchmark not found"
@@ -296,9 +266,9 @@ run_benchmark() {
     
     # Set library path
     if [ "$PLATFORM" = "macosx" ]; then
-        export DYLD_LIBRARY_PATH="$BUILD_DIR:$DYLD_LIBRARY_PATH"
+        export DYLD_LIBRARY_PATH="$EXAMPLE_DIR:$DYLD_LIBRARY_PATH"
     else
-        export LD_LIBRARY_PATH="$BUILD_DIR:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="$EXAMPLE_DIR:$LD_LIBRARY_PATH"
     fi
     
     "$EXAMPLE_DIR/Benchmark"
@@ -313,70 +283,26 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        # Actions
-        --clean)
-            CLEAN=true
-            ;;
-        --generate)
-            ACTION="generate"
-            ;;
-        --build)
-            ACTION="build"
-            ;;
-        --rebuild)
-            CLEAN=true
-            ACTION="build"
-            ;;
-        --test)
-            RUN_TESTS=true
-            ;;
-        --examples)
-            RUN_EXAMPLES=true
-            ;;
-        --benchmark)
-            ACTION="benchmark"
-            ;;
-        --all)
-            ACTION="build"
-            RUN_TESTS=true
-            RUN_EXAMPLES=true
-            ;;
-            
-        # Configuration
-        --debug)
-            CONFIG="debug"
-            ;;
-        --release)
-            CONFIG="release"
-            ;;
-            
-        # Compiler
-        --gcc)
-            COMPILER="gcc"
-            ;;
-        --clang)
-            COMPILER="clang"
-            ;;
-            
-        # Options
-        -j|--jobs)
-            shift
-            JOBS="$1"
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            ;;
-        -h|--help)
-            usage
-            ;;
-            
-        # Premake actions
+        --clean) CLEAN=true ;;
+        --generate) ACTION="generate" ;;
+        --build) ACTION="build" ;;
+        --rebuild) CLEAN=true; ACTION="build" ;;
+        --test) RUN_TESTS=true ;;
+        --examples) RUN_EXAMPLES=true ;;
+        --benchmark) ACTION="benchmark" ;;
+        --all) ACTION="build"; RUN_TESTS=true; RUN_EXAMPLES=true ;;
+        --debug) CONFIG="debug" ;;
+        --release) CONFIG="release" ;;
+        --gcc) COMPILER="gcc" ;;
+        --clang) COMPILER="clang" ;;
+        -j|--jobs) shift; JOBS="$1" ;;
+        -v|--verbose) VERBOSE=true ;;
+        -h|--help) usage ;;
         gmake2|vs2022|vs2019|xcode4)
             check_premake
             premake5 "$1"
             exit 0
             ;;
-            
         *)
             print_error "Unknown option: $1"
             usage
@@ -401,7 +327,7 @@ elif [ "$ACTION" = "build" ]; then
     generate
     build
 elif [ "$ACTION" = "benchmark" ]; then
-    if [ ! -f "Makefile" ]; then
+    if [ ! -d "$BUILD_DIR" ]; then
         generate
     fi
     build

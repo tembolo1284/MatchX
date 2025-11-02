@@ -1,44 +1,5 @@
-# Build outputs
-bin/
-obj/
+# Build directory (everything in one place!)
 build/
-*.out
-*.exe
-*.dll
-*.so
-*.dylib
-*.a
-*.lib
-
-# Premake generated files
-*.sln
-*.vcxproj
-*.vcxproj.filters
-*.vcxproj.user
-*.workspace
-*.make
-Makefile
-*.xcodeproj
-*.xcworkspace
-
-# Compiler/IDE files
-*.o
-*.obj
-*.pdb
-*.ilk
-*.exp
-*.idb
-*.suo
-*.user
-*.ncb
-*.aps
-*.opendb
-*.db
-.vs/
-.vscode/
-*.swp
-*.swo
-*~
 
 # Python
 __pycache__/
@@ -57,15 +18,9 @@ dist/
 Thumbs.db
 *.log
 
-# Documentation builds
-docs/_build/
-docs/_static/
-docs/_templates/
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.orig
-core
-vgcore.*
+# Editor files
+.vscode/
+.vs/
+*.swp
+*.swo
+*~

@@ -1,13 +1,16 @@
 -- MatchX Matching Engine Build Configuration
--- Generates Visual Studio, Xcode, or Makefiles for building the library
+-- Clean build structure: everything goes in build/
 
 workspace "MatchEngine"
     architecture "x64"
     configurations { "Debug", "Release" }
-    startproject "MatchEngine"
     
-    -- Output directories
-    outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
+    -- Put all generated files in build/
+    location "build"
+    
+    -- Output directories (relative to build/ directory)
+    targetdir ("bin/%{cfg.buildcfg}")
+    objdir ("obj/%{cfg.buildcfg}/%{prj.name}")
     
     filter "system:windows"
         systemversion "latest"
@@ -20,20 +23,17 @@ project "MatchEngine"
     cppdialect "C++14"
     staticruntime "off"
     
-    targetdir ("bin/" .. outputdir)
-    objdir ("obj/" .. outputdir)
-    
-    -- Source files
+    -- Source files (relative to build/ directory where Makefile is)
     files {
-        "include/matchengine.h",
-        "include/internal/**.h",
-        "src/**.cpp"
+        "../include/matchengine.h",
+        "../include/internal/**.h",
+        "../src/**.cpp"
     }
     
     -- Include directories
     includedirs {
-        "include",
-        "include/internal"
+        "../include",
+        "../include/internal"
     }
     
     -- Defines
@@ -55,12 +55,11 @@ project "MatchEngine"
         filter "system:linux or system:macosx"
             buildoptions { "-O3", "-march=native", "-mtune=native" }
             
-            -- GCC/Clang specific optimizations
             filter "toolset:gcc or toolset:clang"
                 buildoptions {
                     "-ffast-math",
                     "-funroll-loops",
-                    "-fvisibility=hidden"  -- Hide symbols by default
+                    "-fvisibility=hidden"
                 }
     filter {}
     
@@ -82,26 +81,17 @@ project "MatchEngine"
     filter "system:linux"
         links { "pthread" }
         pic "On"
-        
-        -- Symbol visibility
-        buildoptions {
-            "-fvisibility=hidden"
-        }
+        buildoptions { "-fvisibility=hidden" }
         
     filter "system:macosx"
         pic "On"
-        
-        -- Symbol visibility
-        buildoptions {
-            "-fvisibility=hidden"
-        }
-        
+        buildoptions { "-fvisibility=hidden" }
     filter {}
     
     -- Warnings
     filter "toolset:msc"
         warnings "Extra"
-        disablewarnings { "4100" }  -- unreferenced formal parameter
+        disablewarnings { "4100" }
         
     filter "toolset:gcc or toolset:clang"
         warnings "Extra"
@@ -120,18 +110,15 @@ project "MatchEngineStatic"
     cppdialect "C++14"
     staticruntime "on"
     
-    targetdir ("bin/" .. outputdir)
-    objdir ("obj/" .. outputdir)
-    
     files {
-        "include/matchengine.h",
-        "include/internal/**.h",
-        "src/**.cpp"
+        "../include/matchengine.h",
+        "../include/internal/**.h",
+        "../src/**.cpp"
     }
     
     includedirs {
-        "include",
-        "include/internal"
+        "../include",
+        "../include/internal"
     }
     
     defines {
@@ -155,20 +142,24 @@ project "BasicExample"
     cdialect "C99"
     staticruntime "off"
     
-    targetdir ("bin/" .. outputdir .. "/examples")
-    objdir ("obj/" .. outputdir .. "/examples")
-    
     files {
-        "examples/basic_usage.c"
+        "../examples/basic_usage.c"
     }
     
     includedirs {
-        "include"
+        "../include"
     }
     
     links {
         "MatchEngine"
     }
+    
+    -- Set RPATH so executable can find the .so in same directory
+    filter "system:linux"
+        linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
+    filter "system:macosx"
+        linkoptions { "-Wl,-rpath,@executable_path" }
+    filter {}
     
     filter "configurations:Debug"
         symbols "On"
@@ -185,20 +176,23 @@ project "AdvancedExample"
     cppdialect "C++14"
     staticruntime "off"
     
-    targetdir ("bin/" .. outputdir .. "/examples")
-    objdir ("obj/" .. outputdir .. "/examples")
-    
     files {
-        "examples/advanced_usage.cpp"
+        "../examples/advanced_usage.cpp"
     }
     
     includedirs {
-        "include"
+        "../include"
     }
     
     links {
         "MatchEngine"
     }
+    
+    filter "system:linux"
+        linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
+    filter "system:macosx"
+        linkoptions { "-Wl,-rpath,@executable_path" }
+    filter {}
     
     filter "configurations:Debug"
         symbols "On"
@@ -215,20 +209,23 @@ project "Benchmark"
     cppdialect "C++14"
     staticruntime "off"
     
-    targetdir ("bin/" .. outputdir .. "/examples")
-    objdir ("obj/" .. outputdir .. "/examples")
-    
     files {
-        "examples/benchmark.cpp"
+        "../examples/benchmark.cpp"
     }
     
     includedirs {
-        "include"
+        "../include"
     }
     
     links {
         "MatchEngine"
     }
+    
+    filter "system:linux"
+        linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
+    filter "system:macosx"
+        linkoptions { "-Wl,-rpath,@executable_path" }
+    filter {}
     
     filter "configurations:Debug"
         symbols "On"
@@ -238,21 +235,3 @@ project "Benchmark"
         optimize "Speed"
         defines { "NDEBUG" }
     filter {}
-
--- Clean action
-newaction {
-    trigger = "clean",
-    description = "Clean all build files and outputs",
-    execute = function()
-        os.rmdir("bin")
-        os.rmdir("obj")
-        os.remove("*.sln")
-        os.remove("*.vcxproj")
-        os.remove("*.vcxproj.filters")
-        os.remove("*.vcxproj.user")
-        os.remove("*.workspace")
-        os.remove("*.make")
-        os.remove("Makefile")
-        print("Cleaned build files")
-    end
-}
