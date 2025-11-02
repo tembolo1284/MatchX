@@ -31,7 +31,7 @@ private:
     Timestamp current_timestamp_;
     bool use_system_time_;
     
-    MX_IMPLEMENTS_ALLOCATORS;
+    MX_IMPLEMENTS_ALLOCATORS
 
 public:
     /* ========================================================================

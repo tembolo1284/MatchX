@@ -35,7 +35,7 @@ private:
         FreeNode* next;
     };
     
-    MX_IMPLEMENTS_ALLOCATORS;
+    MX_IMPLEMENTS_ALLOCATORS
 
 public:
     explicit MemoryPool(size_t initial_chunk_size = 1024)

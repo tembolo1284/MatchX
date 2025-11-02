@@ -23,9 +23,6 @@ extern "C" {
 #define MX_VERSION_PATCH 0
 #define MX_VERSION ((MX_VERSION_MAJOR << 16) | (MX_VERSION_MINOR << 8) | MX_VERSION_PATCH)
 
-MX_API unsigned int mx_get_version(void);
-MX_API int mx_is_compatible_dll(void);
-
 /* ============================================================================
  * Symbol Export/Import Configuration
  * ========================================================================= */
@@ -46,6 +43,9 @@ MX_API int mx_is_compatible_dll(void);
 #  endif
 # endif
 #endif
+
+MX_API unsigned int mx_get_version(void);
+MX_API int mx_is_compatible_dll(void);
 
 /* ============================================================================
  * Forward Declarations - Opaque Handles
