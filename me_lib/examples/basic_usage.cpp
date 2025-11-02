@@ -162,7 +162,7 @@ int main(void) {
     
     printf("Cancelling order #10\n");
     int result = mx_order_book_cancel(book, 10);
-    printf("Cancel result: %s\n", mx_status_message(result));
+    printf("Cancel result: %s\n", mx_status_message((mx_status_t)result));
     
     /* Check updated best bid */
     best_bid = mx_order_book_get_best_bid(book);

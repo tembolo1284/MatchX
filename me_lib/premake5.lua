@@ -8,9 +8,9 @@ workspace "MatchEngine"
     -- Put all generated files in build/
     location "build"
     
-    -- Output directories (relative to build/ directory)
-    targetdir ("bin/%{cfg.buildcfg}")
-    objdir ("obj/%{cfg.buildcfg}/%{prj.name}")
+    -- Output directories are relative to build/ directory
+    targetdir "bin/%{cfg.buildcfg}"
+    objdir "obj/%{cfg.buildcfg}/%{prj.name}"
     
     filter "system:windows"
         systemversion "latest"
@@ -23,7 +23,7 @@ project "MatchEngine"
     cppdialect "C++14"
     staticruntime "off"
     
-    -- Source files (relative to build/ directory where Makefile is)
+    -- Source files - go up one level from build/ to reach these
     files {
         "../include/matchengine.h",
         "../include/internal/**.h",
@@ -138,16 +138,16 @@ project "MatchEngineStatic"
 -- Example: Basic Usage
 project "BasicExample"
     kind "ConsoleApp"
-    language "C"
-    cdialect "C99"
+    language "C++"
+    cppdialect "C++14"
     staticruntime "off"
     
     files {
-        "../examples/basic_usage.c"
+        "examples/basic_usage.cpp"
     }
     
     includedirs {
-        "../include"
+        "include"
     }
     
     links {
@@ -177,11 +177,11 @@ project "AdvancedExample"
     staticruntime "off"
     
     files {
-        "../examples/advanced_usage.cpp"
+        "examples/advanced_usage.cpp"
     }
     
     includedirs {
-        "../include"
+        "include"
     }
     
     links {
@@ -210,11 +210,11 @@ project "Benchmark"
     staticruntime "off"
     
     files {
-        "../examples/benchmark.cpp"
+        "examples/benchmark.cpp"
     }
     
     includedirs {
-        "../include"
+        "include"
     }
     
     links {

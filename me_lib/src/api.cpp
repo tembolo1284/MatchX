@@ -9,6 +9,7 @@
 #include "internal/core/order_book.h"
 #include "internal/allocator.h"
 
+extern "C" {
 /* ============================================================================
  * Type Casting Macros (as per the article)
  * ========================================================================= */
@@ -19,8 +20,6 @@
 /* ============================================================================
  * Order Book Management
  * ========================================================================= */
-
-extern "C" {
 
 mx_order_book_t* mx_order_book_new(mx_context_t* ctx, const char* symbol) {
     if (!ctx || !symbol) return nullptr;
