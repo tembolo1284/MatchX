@@ -88,11 +88,6 @@ project "MatchEngine"
             "-fvisibility=hidden"
         }
         
-        -- Export only MX_API symbols
-        linkoptions {
-            "-Wl,--version-script=exports.map"  -- Optional: symbol version script
-        }
-        
     filter "system:macosx"
         pic "On"
         
@@ -101,10 +96,6 @@ project "MatchEngine"
             "-fvisibility=hidden"
         }
         
-        -- Export symbols
-        linkoptions {
-            "-exported_symbols_list exports.txt"  -- Optional: explicit symbol list
-        }
     filter {}
     
     -- Warnings

@@ -10,11 +10,7 @@
 
 namespace matchx {
 
-/* ============================================================================
- * Intrusive List Node
- * Embed this in your class to make it list-compatible
- * ========================================================================= */
-
+/* Intrusive List Node */
 template<typename T>
 struct IntrusiveListNode {
     T* next;
@@ -22,23 +18,17 @@ struct IntrusiveListNode {
     
     IntrusiveListNode() : next(nullptr), prev(nullptr) {}
     
-    // Check if node is linked
     bool is_linked() const {
         return next != nullptr || prev != nullptr;
     }
     
-    // Unlink this node
     void unlink() {
         next = nullptr;
         prev = nullptr;
     }
 };
 
-/* ============================================================================
- * Intrusive List
- * Maintains head/tail pointers, all operations are O(1)
- * ========================================================================= */
-
+/* Intrusive List */
 template<typename T>
 class IntrusiveList {
 private:
@@ -50,7 +40,6 @@ public:
     IntrusiveList() : head_(nullptr), tail_(nullptr), size_(0) {}
     
     ~IntrusiveList() {
-        // Note: Does NOT delete nodes - they are owned externally
         clear();
     }
     
@@ -58,25 +47,39 @@ public:
     IntrusiveList(const IntrusiveList&) = delete;
     IntrusiveList& operator=(const IntrusiveList&) = delete;
     
-    /* ========================================================================
-     * Accessors
-     * ===================================================================== */
+    // Moveable
+    IntrusiveList(IntrusiveList&& other) noexcept
+        : head_(other.head_)
+        , tail_(other.tail_)
+        , size_(other.size_) {
+        other.head_ = nullptr;
+        other.tail_ = nullptr;
+        other.size_ = 0;
+    }
     
+    IntrusiveList& operator=(IntrusiveList&& other) noexcept {
+        if (this != &other) {
+            clear();
+            head_ = other.head_;
+            tail_ = other.tail_;
+            size_ = other.size_;
+            other.head_ = nullptr;
+            other.tail_ = nullptr;
+            other.size_ = 0;
+        }
+        return *this;
+    }
+    
+    /* Accessors */
     T* head() const { return head_; }
     T* tail() const { return tail_; }
     uint32_t size() const { return size_; }
     bool empty() const { return size_ == 0; }
     
-    /* ========================================================================
-     * List Operations - All O(1)
-     * ===================================================================== */
-    
-    /**
-     * Push to back (FIFO - for time priority)
-     */
+    /* List Operations */
     void push_back(T* node) {
         MX_ASSERT(node != nullptr);
-        MX_ASSERT(!node->is_linked()); // Node must not already be in a list
+        MX_ASSERT(!node->is_linked());
         
         node->next = nullptr;
         node->prev = tail_;
@@ -84,16 +87,13 @@ public:
         if (tail_) {
             tail_->next = node;
         } else {
-            head_ = node; // List was empty
+            head_ = node;
         }
         
         tail_ = node;
         ++size_;
     }
     
-    /**
-     * Push to front (for priority jumping)
-     */
     void push_front(T* node) {
         MX_ASSERT(node != nullptr);
         MX_ASSERT(!node->is_linked());
@@ -104,16 +104,13 @@ public:
         if (head_) {
             head_->prev = node;
         } else {
-            tail_ = node; // List was empty
+            tail_ = node;
         }
         
         head_ = node;
         ++size_;
     }
     
-    /**
-     * Pop from front (for matching)
-     */
     T* pop_front() {
         if (!head_) return nullptr;
         
@@ -123,7 +120,7 @@ public:
         if (head_) {
             head_->prev = nullptr;
         } else {
-            tail_ = nullptr; // List is now empty
+            tail_ = nullptr;
         }
         
         node->unlink();
@@ -131,9 +128,6 @@ public:
         return node;
     }
     
-    /**
-     * Pop from back
-     */
     T* pop_back() {
         if (!tail_) return nullptr;
         
@@ -143,7 +137,7 @@ public:
         if (tail_) {
             tail_->next = nullptr;
         } else {
-            head_ = nullptr; // List is now empty
+            head_ = nullptr;
         }
         
         node->unlink();
@@ -151,24 +145,18 @@ public:
         return node;
     }
     
-    /**
-     * Remove a specific node from anywhere in the list - O(1)!
-     * This is the key advantage of intrusive lists
-     */
     void remove(T* node) {
         MX_ASSERT(node != nullptr);
         
         if (node->prev) {
             node->prev->next = node->next;
         } else {
-            // Node was head
             head_ = node->next;
         }
         
         if (node->next) {
             node->next->prev = node->prev;
         } else {
-            // Node was tail
             tail_ = node->prev;
         }
         
@@ -176,9 +164,6 @@ public:
         --size_;
     }
     
-    /**
-     * Insert after a specific node
-     */
     void insert_after(T* existing, T* new_node) {
         MX_ASSERT(existing != nullptr);
         MX_ASSERT(new_node != nullptr);
@@ -190,16 +175,13 @@ public:
         if (existing->next) {
             existing->next->prev = new_node;
         } else {
-            tail_ = new_node; // Inserted at end
+            tail_ = new_node;
         }
         
         existing->next = new_node;
         ++size_;
     }
     
-    /**
-     * Insert before a specific node
-     */
     void insert_before(T* existing, T* new_node) {
         MX_ASSERT(existing != nullptr);
         MX_ASSERT(new_node != nullptr);
@@ -211,16 +193,13 @@ public:
         if (existing->prev) {
             existing->prev->next = new_node;
         } else {
-            head_ = new_node; // Inserted at beginning
+            head_ = new_node;
         }
         
         existing->prev = new_node;
         ++size_;
     }
     
-    /**
-     * Clear the list (does not delete nodes)
-     */
     void clear() {
         T* current = head_;
         while (current) {
@@ -232,13 +211,7 @@ public:
         size_ = 0;
     }
     
-    /* ========================================================================
-     * Iteration Support
-     * ===================================================================== */
-    
-    /**
-     * Iterator for range-based for loops
-     */
+    /* Iterator */
     class Iterator {
     private:
         T* current_;
