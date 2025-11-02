@@ -1,0 +1,71 @@
+# Build outputs
+bin/
+obj/
+build/
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Premake generated files
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.workspace
+*.make
+Makefile
+*.xcodeproj
+*.xcworkspace
+
+# Compiler/IDE files
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.suo
+*.user
+*.ncb
+*.aps
+*.opendb
+*.db
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+.eggs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+core
+vgcore.*
