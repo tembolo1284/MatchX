@@ -1,16 +1,16 @@
 -- MatchX Matching Engine Build Configuration
 -- Clean build structure: everything goes in build/
-
 workspace "MatchEngine"
     architecture "x64"
-    configurations { "Debug", "Release" }
+    configurations { "debug", "release" }  -- lowercase to get build/bin/release/
     
-    -- Put all generated files in build/
+    -- Put all generated Makefiles in build/
     location "build"
     
-    -- Output directories are relative to build/ directory
-    targetdir "bin/%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}/%{prj.name}"
+    -- Output directories - when location is "build", these are relative to build/
+    -- So this creates build/bin/release/ and build/obj/release/
+    targetdir ("%{wks.location}/bin/%{cfg.buildcfg}")
+    objdir ("%{wks.location}/obj/%{cfg.buildcfg}/%{prj.name}")
     
     filter "system:windows"
         systemversion "latest"
@@ -23,26 +23,24 @@ project "MatchEngine"
     cppdialect "C++14"
     staticruntime "off"
     
-    -- Source files - go up one level from build/ to reach these
+    -- Source files - paths relative to workspace (project root)
     files {
-        "../include/matchengine.h",
-        "../include/internal/**.h",
-        "../src/**.cpp"
+        "%{wks.location}/../include/matchengine.h",
+        "%{wks.location}/../include/internal/**.h",
+        "%{wks.location}/../src/**.cpp"
     }
     
-    -- Include directories
+    -- Include directories - relative to project root
     includedirs {
-        "../include",
-        "../include/internal"
+        "%{wks.location}/../include",
+        "%{wks.location}/../include/internal"
     }
     
-    -- Defines
     defines {
         "MX_BUILD_SHARED"
     }
     
-    -- Compiler flags for performance
-    filter "configurations:Release"
+    filter "configurations:release"
         defines { "NDEBUG" }
         optimize "Speed"
         inlining "Auto"
@@ -63,14 +61,12 @@ project "MatchEngine"
                 }
     filter {}
     
-    -- Debug configuration
-    filter "configurations:Debug"
+    filter "configurations:debug"
         defines { "MX_DEBUG", "_DEBUG" }
         symbols "On"
         optimize "Off"
     filter {}
     
-    -- Platform-specific settings
     filter "system:windows"
         defines {
             "_WINDOWS",
@@ -88,7 +84,6 @@ project "MatchEngine"
         buildoptions { "-fvisibility=hidden" }
     filter {}
     
-    -- Warnings
     filter "toolset:msc"
         warnings "Extra"
         disablewarnings { "4100" }
@@ -103,7 +98,7 @@ project "MatchEngine"
         }
     filter {}
 
--- Static Library variant (optional)
+-- Static Library variant
 project "MatchEngineStatic"
     kind "StaticLib"
     language "C++"
@@ -111,61 +106,66 @@ project "MatchEngineStatic"
     staticruntime "on"
     
     files {
-        "../include/matchengine.h",
-        "../include/internal/**.h",
-        "../src/**.cpp"
+        "%{wks.location}/../include/matchengine.h",
+        "%{wks.location}/../include/internal/**.h",
+        "%{wks.location}/../src/**.cpp"
     }
     
     includedirs {
-        "../include",
-        "../include/internal"
+        "%{wks.location}/../include",
+        "%{wks.location}/../include/internal"
     }
     
     defines {
         "MX_BUILD_STATIC"
     }
     
-    filter "configurations:Release"
+    filter "configurations:release"
         defines { "NDEBUG" }
         optimize "Speed"
     filter {}
     
-    filter "configurations:Debug"
+    filter "configurations:debug"
         defines { "MX_DEBUG", "_DEBUG" }
         symbols "On"
     filter {}
 
--- Example: Basic Usage
+-- Example: Basic Usage (C)
 project "BasicExample"
     kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++14"
+    language "C"
+    cdialect "C99"
     staticruntime "off"
     
     files {
-        "examples/basic_usage.cpp"
+        "%{wks.location}/../examples/basic_usage.c"
     }
     
     includedirs {
-        "include"
+        "%{wks.location}/../include"
     }
     
     links {
         "MatchEngine"
     }
     
-    -- Set RPATH so executable can find the .so in same directory
+    -- Library is in build/bin/release (same directory as this executable)
+    libdirs {
+        "%{cfg.buildtarget.directory}"
+    }
+    
     filter "system:linux"
+        links { "m", "pthread" }
         linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
     filter "system:macosx"
         linkoptions { "-Wl,-rpath,@executable_path" }
     filter {}
     
-    filter "configurations:Debug"
+    filter "configurations:debug"
         symbols "On"
     filter {}
     
-    filter "configurations:Release"
+    filter "configurations:release"
         optimize "On"
     filter {}
 
@@ -177,28 +177,33 @@ project "AdvancedExample"
     staticruntime "off"
     
     files {
-        "examples/advanced_usage.cpp"
+        "%{wks.location}/../examples/advanced_usage.cpp"
     }
     
     includedirs {
-        "include"
+        "%{wks.location}/../include"
     }
     
     links {
         "MatchEngine"
     }
     
+    libdirs {
+        "%{cfg.buildtarget.directory}"
+    }
+    
     filter "system:linux"
+        links { "pthread" }
         linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
     filter "system:macosx"
         linkoptions { "-Wl,-rpath,@executable_path" }
     filter {}
     
-    filter "configurations:Debug"
+    filter "configurations:debug"
         symbols "On"
     filter {}
     
-    filter "configurations:Release"
+    filter "configurations:release"
         optimize "On"
     filter {}
 
@@ -210,28 +215,33 @@ project "Benchmark"
     staticruntime "off"
     
     files {
-        "examples/benchmark.cpp"
+        "%{wks.location}/../examples/benchmark.cpp"
     }
     
     includedirs {
-        "include"
+        "%{wks.location}/../include"
     }
     
     links {
         "MatchEngine"
     }
     
+    libdirs {
+        "%{cfg.buildtarget.directory}"
+    }
+    
     filter "system:linux"
+        links { "pthread" }
         linkoptions { "-Wl,-rpath,'$$ORIGIN'" }
     filter "system:macosx"
         linkoptions { "-Wl,-rpath,@executable_path" }
     filter {}
     
-    filter "configurations:Debug"
+    filter "configurations:debug"
         symbols "On"
     filter {}
     
-    filter "configurations:Release"
+    filter "configurations:release"
         optimize "Speed"
         defines { "NDEBUG" }
     filter {}
