@@ -630,8 +630,18 @@ void OrderBook::add_to_book(Order* order) {
     MX_ASSERT(order != nullptr);
     MX_ASSERT(!order->is_market()); // Market orders don't go in book
     
+    if (order->order_id() == 1) {
+        printf("[DEBUG] add_to_book: order_id=1, price=%u, side=%d, is_linked_before=%d\n",
+               order->price(), order->side(), order->is_linked() ? 1 : 0);
+    }
+    
     PriceLevel* level = get_or_create_level(order->side(), order->price());
     level->add_order(order);
+    
+    if (order->order_id() == 1) {
+        printf("[DEBUG] add_to_book: after add_order - is_linked_after=%d, level_count=%u\n",
+               order->is_linked() ? 1 : 0, level->order_count());
+    }
     
     // Update best prices
     if (order->is_buy()) {
@@ -649,27 +659,48 @@ void OrderBook::remove_from_book(Order* order) {
     MX_ASSERT(order != nullptr);
     
     if (!order->is_active() && !order->is_partially_filled()) {
+        printf("[DEBUG] remove_from_book: order not active/partial, returning early\n");
         return; // Not in book
     }
     
+    printf("[DEBUG] remove_from_book: order_id=%llu, price=%u, side=%d, is_linked=%d\n",
+           (unsigned long long)order->order_id(), order->price(), 
+           order->side(), order->is_linked() ? 1 : 0);
+    
     PriceLevel* level = get_level(order->side(), order->price());
+    printf("[DEBUG] remove_from_book: level=%p\n", (void*)level);
+    
     if (level) {
+        printf("[DEBUG] remove_from_book: level exists, order_count=%u, empty=%d\n",
+               level->order_count(), level->empty() ? 1 : 0);
+        
         // Only try to remove from level if order is actually linked
-        // (it might have been removed already by matching logic)
         if (order->is_linked()) {
+            printf("[DEBUG] remove_from_book: removing order from level\n");
             level->remove_order(order);
+            printf("[DEBUG] remove_from_book: after remove - order_count=%u, empty=%d\n",
+                   level->order_count(), level->empty() ? 1 : 0);
+        } else {
+            printf("[DEBUG] remove_from_book: order not linked, skipping remove\n");
         }
         
         // Always clean up empty levels and update best prices
-        // even if the order was already unlinked
         remove_level_if_empty(order->side(), order->price());
+        
+        printf("[DEBUG] remove_from_book: best_bid=%u, checking if need to update\n", best_bid_);
         
         // Update best prices if needed
         if (order->is_buy() && order->price() == best_bid_) {
+            printf("[DEBUG] remove_from_book: updating best bid\n");
             update_best_bid();
+            printf("[DEBUG] remove_from_book: new best_bid=%u\n", best_bid_);
         } else if (order->is_sell() && order->price() == best_ask_) {
+            printf("[DEBUG] remove_from_book: updating best ask\n");
             update_best_ask();
+            printf("[DEBUG] remove_from_book: new best_ask=%u\n", best_ask_);
         }
+    } else {
+        printf("[DEBUG] remove_from_book: level is NULL!\n");
     }
 }
 
@@ -721,13 +752,33 @@ const PriceLevel* OrderBook::get_level(Side side, Price price) const {
 void OrderBook::remove_level_if_empty(Side side, Price price) {
     if (side == MX_SIDE_BUY) {
         auto it = bid_levels_.find(price);
-        if (it != bid_levels_.end() && it->second.empty()) {
-            bid_levels_.erase(it);
+        if (it != bid_levels_.end()) {
+            printf("[DEBUG] remove_level_if_empty: found bid level at price=%u, empty=%d, count=%u\n",
+                   price, it->second.empty() ? 1 : 0, it->second.order_count());
+            if (it->second.empty()) {
+                printf("[DEBUG] remove_level_if_empty: erasing bid level\n");
+                bid_levels_.erase(it);
+                printf("[DEBUG] remove_level_if_empty: bid_levels_.size()=%zu\n", bid_levels_.size());
+            } else {
+                printf("[DEBUG] remove_level_if_empty: bid level not empty, not erasing\n");
+            }
+        } else {
+            printf("[DEBUG] remove_level_if_empty: bid level not found at price=%u\n", price);
         }
     } else {
         auto it = ask_levels_.find(price);
-        if (it != ask_levels_.end() && it->second.empty()) {
-            ask_levels_.erase(it);
+        if (it != ask_levels_.end()) {
+            printf("[DEBUG] remove_level_if_empty: found ask level at price=%u, empty=%d, count=%u\n",
+                   price, it->second.empty() ? 1 : 0, it->second.order_count());
+            if (it->second.empty()) {
+                printf("[DEBUG] remove_level_if_empty: erasing ask level\n");
+                ask_levels_.erase(it);
+                printf("[DEBUG] remove_level_if_empty: ask_levels_.size()=%zu\n", ask_levels_.size());
+            } else {
+                printf("[DEBUG] remove_level_if_empty: ask level not empty, not erasing\n");
+            }
+        } else {
+            printf("[DEBUG] remove_level_if_empty: ask level not found at price=%u\n", price);
         }
     }
 }

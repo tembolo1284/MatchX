@@ -56,25 +56,25 @@ public:
      * Create a simple limit order
      */
     Order* create_order(OrderId id, Side side, Price price, 
-                       Quantity quantity, Timestamp timestamp) {
-        
+                   Quantity quantity, Timestamp timestamp) {
+    
         // Check for duplicate order ID
         if (MX_UNLIKELY(order_lookup_.contains(id))) {
             return nullptr; // Duplicate order ID
         }
-        
+    
         // Allocate and construct order
         Order* order = pool_.construct(id, side, MX_ORDER_TYPE_LIMIT, 
                                       price, quantity, timestamp);
-        
+    
         if (MX_LIKELY(order != nullptr)) {
             order->set_state(OrderState::ACTIVE);
             order_lookup_[id] = order;
         }
-        
-        return order;
-    }
     
+        return order;
+    }   
+ 
     /**
      * Create a market order
      */

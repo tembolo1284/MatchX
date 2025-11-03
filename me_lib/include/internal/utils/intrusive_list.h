@@ -15,16 +15,18 @@ template<typename T>
 struct IntrusiveListNode {
     T* next;
     T* prev;
+    bool linked_;
     
-    IntrusiveListNode() : next(nullptr), prev(nullptr) {}
+    IntrusiveListNode() : next(nullptr), prev(nullptr), linked_(false) {}
     
     bool is_linked() const {
-        return next != nullptr || prev != nullptr;
+        return linked_;
     }
     
     void unlink() {
         next = nullptr;
         prev = nullptr;
+        linked_ = false;
     }
 };
 
@@ -83,7 +85,8 @@ public:
         
         node->next = nullptr;
         node->prev = tail_;
-        
+        node->linked_ = true;       
+ 
         if (tail_) {
             tail_->next = node;
         } else {
@@ -100,6 +103,7 @@ public:
         
         node->prev = nullptr;
         node->next = head_;
+        node->linked_ = true;
         
         if (head_) {
             head_->prev = node;
@@ -179,6 +183,7 @@ public:
         }
         
         existing->next = new_node;
+        new_node->linked_ = true;
         ++size_;
     }
     
@@ -197,6 +202,7 @@ public:
         }
         
         existing->prev = new_node;
+        new_node->linked_ = true;
         ++size_;
     }
     
