@@ -284,6 +284,14 @@ mx_status_t OrderBook::process_new_order(Order* order) {
     return result.status;
 }
 
+MatchResult OrderBook::match_order(Order* order) {
+    if (order->is_market()) {
+        return match_market_order(order);
+    } else {
+        return match_limit_order(order);
+    }
+}
+
 MatchResult OrderBook::match_limit_order(Order* order) {
     MatchResult result;
     result.status = MX_STATUS_OK;

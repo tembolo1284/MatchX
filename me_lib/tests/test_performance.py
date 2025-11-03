@@ -36,33 +36,43 @@ class PerformanceTimer:
         """Calculate operations per second"""
         return operations / self.elapsed if self.elapsed > 0 else 0
 
-@pytest.mark.performance
-class TestAddOrderPerformance:
-    """Test performance of adding orders"""
-    @pytest.mark.skip(reason="Segfault - needs debugging")    
+    @pytest.mark.performance
     def test_add_1000_limit_orders(self, order_book):
         """Add 1000 limit orders and measure time"""
         num_orders = 1000
-        
+    
         with PerformanceTimer("Add 1000 orders") as timer:
             for i in range(num_orders):
-                lib.mx_order_book_add_limit(
-                    order_book,
-                    i + 1,
-                    SIDE_BUY if i % 2 == 0 else SIDE_SELL,
-                    price_to_ticks(100.00 + (i % 10)),
-                    100
-                )
-        
+                # Use wider spread to prevent matching
+                # Buys at 90-99, Sells at 110-119
+                if i % 2 == 0:
+                    # Buy side - lower prices
+                    lib.mx_order_book_add_limit(
+                        order_book,
+                        i + 1,
+                        SIDE_BUY,
+                        price_to_ticks(90.00 + (i % 10)),  # 90-99
+                        100
+                    )
+                else:
+                    # Sell side - higher prices
+                    lib.mx_order_book_add_limit(
+                        order_book,
+                        i + 1,
+                        SIDE_SELL,
+                        price_to_ticks(110.00 + (i % 10)),  # 110-119
+                        100
+                    )
+    
         print(f"\n  Elapsed: {timer.elapsed:.4f}s")
         print(f"  Orders/sec: {timer.ops_per_second(num_orders):,.0f}")
         print(f"  Latency: {timer.nanoseconds_per_op(num_orders):.0f}ns per order")
-        
-        # Verify all orders added
+    
+        # Verify all orders added (none should match with this spread)
         total_orders = ffi.new("uint32_t*")
         lib.mx_order_book_get_stats(order_book, total_orders, ffi.NULL, ffi.NULL, ffi.NULL, ffi.NULL)
         assert total_orders[0] == num_orders
-    
+
     def test_add_10000_orders_to_same_price(self, order_book):
         """Add 10000 orders to same price level"""
         num_orders = 10000
@@ -160,7 +170,6 @@ class TestCancelPerformance:
 @pytest.mark.performance
 class TestMatchingPerformance:
     """Test matching performance"""
-    @pytest.mark.skip(reason="Segfault - needs debugging")    
     def test_match_1000_orders_one_by_one(self, order_book):
         """Match 1000 orders individually"""
         num_orders = 1000
@@ -218,7 +227,6 @@ class TestMatchingPerformance:
         # All should be matched
         assert lib.mx_order_book_get_best_ask(order_book) == 0
     
-    @pytest.mark.skip(reason="Segfault - needs debugging")    
     def test_partial_fills_performance(self, book_with_callbacks):
         """Test performance with many partial fills"""
         book, trades, events = book_with_callbacks
