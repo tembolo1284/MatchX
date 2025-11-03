@@ -190,15 +190,8 @@ public:
             total_volume_ -= match_qty;
             visible_volume_ -= MX_MIN(match_qty, passive_order->visible_quantity());
             
-            // Notify callback
-            if (aggressive_order->is_buy()) {
-                on_trade(aggressive_order->order_id(), passive_order->order_id(),
-                        execution_price, match_qty, timestamp);
-            } else {
-                on_trade(passive_order->order_id(), aggressive_order->order_id(),
-                        execution_price, match_qty, timestamp);
-            }
-            
+            on_trade(aggressive_order->order_id(), passive_order->order_id(), execution_price, match_qty, timestamp);
+
             // Remove passive order if fully filled
             if (passive_order->is_filled()) {
                 orders_.pop_front();

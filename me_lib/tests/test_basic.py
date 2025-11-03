@@ -275,7 +275,7 @@ class TestOrderQueries:
         )
         
         # Query order info
-        side_out = ffi.new("int*")
+        side_out = ffi.new("mx_side_t*")
         price_out = ffi.new("uint32_t*")
         quantity_out = ffi.new("uint32_t*")
         filled_out = ffi.new("uint32_t*")

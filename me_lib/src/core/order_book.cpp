@@ -229,16 +229,32 @@ mx_status_t OrderBook::process_new_order(Order* order) {
     // Handle special TIF types
     if (order->is_fok()) {
         MatchResult result = handle_fok_order(order);
-        return result.status;  // FIX: Return just the status
+        return result.status;
     }
     
     if (order->is_ioc()) {
         MatchResult result = handle_ioc_order(order);
-        return result.status;  // FIX: Return just the status
+        return result.status;
     }
     
     // Regular matching
     MatchResult result = match_order(order);
+    
+    // Market orders never go in the book - always IOC behavior
+    if (order->is_market()) {
+        if (order->remaining_quantity() > 0) {
+            // Market order couldn't be fully filled - cancel remainder
+            order->cancel();
+            notify_order_event(order->order_id(), MX_EVENT_ORDER_CANCELLED,
+                             order->filled_quantity(), 0);
+        } else {
+            // Fully filled
+            notify_order_event(order->order_id(), MX_EVENT_ORDER_FILLED,
+                             order->filled_quantity(), 0);
+        }
+        order_pool_.destroy_order(order);
+        return result.status;
+    }
     
     // If order has remaining quantity and is GTC/DAY/GTD, add to book
     if (order->remaining_quantity() > 0 && !order->is_filled()) {
@@ -253,7 +269,7 @@ mx_status_t OrderBook::process_new_order(Order* order) {
                                  0, order->remaining_quantity());
             }
         } else {
-            // IOC-like behavior for market orders - cancel remainder
+            // IOC-like behavior for other TIF types - cancel remainder
             order->cancel();
             notify_order_event(order->order_id(), MX_EVENT_ORDER_CANCELLED,
                              order->filled_quantity(), 0);
@@ -268,19 +284,10 @@ mx_status_t OrderBook::process_new_order(Order* order) {
     return result.status;
 }
 
-MatchResult OrderBook::match_order(Order* order) {
-    if (order->is_market()) {
-        return match_market_order(order);
-    } else {
-        return match_limit_order(order);
-    }
-}
-
 MatchResult OrderBook::match_limit_order(Order* order) {
     MatchResult result;
     result.status = MX_STATUS_OK;
     
-    // FIX: Handle buy and sell separately to avoid type mismatch
     Timestamp now = get_current_timestamp();
     
     if (order->is_buy()) {
@@ -294,12 +301,28 @@ MatchResult OrderBook::match_limit_order(Order* order) {
                 break; // No more matchable prices
             }
             
+            // Collect filled orders for cleanup
+            std::vector<OrderId> filled_orders;
+            
             // Match at this level
             Quantity matched = level.match_orders(
                 order, 
                 order->remaining_quantity(),
-                [this, now](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
+                [this, now, &filled_orders](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
                     this->notify_trade(agg_id, pass_id, price, qty, now);
+                    
+                    // Check passive order state after fill
+                    Order* passive_order = order_pool_.find_order(pass_id);
+                    if (passive_order) {
+                        if (passive_order->is_filled()) {
+                            filled_orders.push_back(pass_id);
+                        } else if (passive_order->filled_quantity() > 0) {
+                            // Passive order partially filled - notify
+                            notify_order_event(pass_id, MX_EVENT_ORDER_PARTIAL,
+                                             passive_order->filled_quantity(),
+                                             passive_order->remaining_quantity());
+                        }
+                    }
                 },
                 now
             );
@@ -307,6 +330,16 @@ MatchResult OrderBook::match_limit_order(Order* order) {
             result.matched_quantity += matched;
             total_trades_++;
             total_volume_ += matched;
+            
+            // Destroy fully filled passive orders (already removed from level by match_orders)
+            for (OrderId filled_id : filled_orders) {
+                Order* filled_order = order_pool_.find_order(filled_id);
+                if (filled_order) {
+                    notify_order_event(filled_id, MX_EVENT_ORDER_FILLED,
+                                     filled_order->filled_quantity(), 0);
+                    order_pool_.destroy_order(filled_order);
+                }
+            }
             
             // Remove level if empty
             if (level.empty()) {
@@ -327,12 +360,28 @@ MatchResult OrderBook::match_limit_order(Order* order) {
                 break; // No more matchable prices
             }
             
+            // Collect filled orders for cleanup
+            std::vector<OrderId> filled_orders;
+            
             // Match at this level
             Quantity matched = level.match_orders(
                 order,
                 order->remaining_quantity(),
-                [this, now](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
+                [this, now, &filled_orders](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
                     this->notify_trade(agg_id, pass_id, price, qty, now);
+                    
+                    // Check passive order state after fill
+                    Order* passive_order = order_pool_.find_order(pass_id);
+                    if (passive_order) {
+                        if (passive_order->is_filled()) {
+                            filled_orders.push_back(pass_id);
+                        } else if (passive_order->filled_quantity() > 0) {
+                            // Passive order partially filled - notify
+                            notify_order_event(pass_id, MX_EVENT_ORDER_PARTIAL,
+                                             passive_order->filled_quantity(),
+                                             passive_order->remaining_quantity());
+                        }
+                    }
                 },
                 now
             );
@@ -340,6 +389,16 @@ MatchResult OrderBook::match_limit_order(Order* order) {
             result.matched_quantity += matched;
             total_trades_++;
             total_volume_ += matched;
+            
+            // Destroy fully filled passive orders (already removed from level by match_orders)
+            for (OrderId filled_id : filled_orders) {
+                Order* filled_order = order_pool_.find_order(filled_id);
+                if (filled_order) {
+                    notify_order_event(filled_id, MX_EVENT_ORDER_FILLED,
+                                     filled_order->filled_quantity(), 0);
+                    order_pool_.destroy_order(filled_order);
+                }
+            }
             
             // Remove level if empty
             if (level.empty()) {
@@ -369,11 +428,27 @@ MatchResult OrderBook::match_market_order(Order* order) {
         while (it != ask_levels_.end() && order->remaining_quantity() > 0) {
             PriceLevel& level = it->second;
             
+            // Collect filled orders for cleanup
+            std::vector<OrderId> filled_orders;
+            
             Quantity matched = level.match_orders(
                 order,
                 order->remaining_quantity(),
-                [this, now](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
+                [this, now, &filled_orders](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
                     this->notify_trade(agg_id, pass_id, price, qty, now);
+                    
+                    // Check passive order state after fill
+                    Order* passive_order = order_pool_.find_order(pass_id);
+                    if (passive_order) {
+                        if (passive_order->is_filled()) {
+                            filled_orders.push_back(pass_id);
+                        } else if (passive_order->filled_quantity() > 0) {
+                            // Passive order partially filled - notify
+                            notify_order_event(pass_id, MX_EVENT_ORDER_PARTIAL,
+                                             passive_order->filled_quantity(),
+                                             passive_order->remaining_quantity());
+                        }
+                    }
                 },
                 now
             );
@@ -381,6 +456,16 @@ MatchResult OrderBook::match_market_order(Order* order) {
             result.matched_quantity += matched;
             total_trades_++;
             total_volume_ += matched;
+            
+            // Destroy fully filled passive orders (already removed from level by match_orders)
+            for (OrderId filled_id : filled_orders) {
+                Order* filled_order = order_pool_.find_order(filled_id);
+                if (filled_order) {
+                    notify_order_event(filled_id, MX_EVENT_ORDER_FILLED,
+                                     filled_order->filled_quantity(), 0);
+                    order_pool_.destroy_order(filled_order);
+                }
+            }
             
             if (level.empty()) {
                 it = ask_levels_.erase(it);
@@ -395,11 +480,27 @@ MatchResult OrderBook::match_market_order(Order* order) {
         while (it != bid_levels_.end() && order->remaining_quantity() > 0) {
             PriceLevel& level = it->second;
             
+            // Collect filled orders for cleanup
+            std::vector<OrderId> filled_orders;
+            
             Quantity matched = level.match_orders(
                 order,
                 order->remaining_quantity(),
-                [this, now](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
+                [this, now, &filled_orders](OrderId agg_id, OrderId pass_id, Price price, Quantity qty, Timestamp ts) {
                     this->notify_trade(agg_id, pass_id, price, qty, now);
+                    
+                    // Check passive order state after fill
+                    Order* passive_order = order_pool_.find_order(pass_id);
+                    if (passive_order) {
+                        if (passive_order->is_filled()) {
+                            filled_orders.push_back(pass_id);
+                        } else if (passive_order->filled_quantity() > 0) {
+                            // Passive order partially filled - notify
+                            notify_order_event(pass_id, MX_EVENT_ORDER_PARTIAL,
+                                             passive_order->filled_quantity(),
+                                             passive_order->remaining_quantity());
+                        }
+                    }
                 },
                 now
             );
@@ -407,6 +508,16 @@ MatchResult OrderBook::match_market_order(Order* order) {
             result.matched_quantity += matched;
             total_trades_++;
             total_volume_ += matched;
+            
+            // Destroy fully filled passive orders (already removed from level by match_orders)
+            for (OrderId filled_id : filled_orders) {
+                Order* filled_order = order_pool_.find_order(filled_id);
+                if (filled_order) {
+                    notify_order_event(filled_id, MX_EVENT_ORDER_FILLED,
+                                     filled_order->filled_quantity(), 0);
+                    order_pool_.destroy_order(filled_order);
+                }
+            }
             
             if (level.empty()) {
                 it = bid_levels_.erase(it);
