@@ -34,6 +34,14 @@ namespace matchx {
     #define MX_UNLIKELY(x) (x)
 #endif
 
+#ifdef MX_DEBUG
+    #include <cassert>
+    #define MX_ASSERT(expr) assert(expr)
+#else
+    // In release mode, assertions are no-ops
+    #define MX_ASSERT(expr) ((void)0)
+#endif
+
 /* Cache line size for alignment */
 #define MX_CACHE_LINE_SIZE 64
 
@@ -105,11 +113,13 @@ constexpr OrderId INVALID_ORDER_ID = 0;
  * ========================================================================= */
 
 #ifdef MX_DEBUG
-    #define MX_ASSERT(expr) assert(expr)
-    #define MX_DEBUG_PRINT(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
+    #define MX_DEBUG_PRINT(fmt, ...) \
+        fprintf(stderr, "[DEBUG] " fmt, ##__VA_ARGS__)
+    #define MX_DEBUG_PRINT0(msg) \
+        fprintf(stderr, "[DEBUG] %s", msg)
 #else
-    #define MX_ASSERT(expr) ((void)0)
     #define MX_DEBUG_PRINT(fmt, ...) ((void)0)
+    #define MX_DEBUG_PRINT0(msg) ((void)0)
 #endif
 
 /* ============================================================================

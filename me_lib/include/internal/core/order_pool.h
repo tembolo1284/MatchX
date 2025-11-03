@@ -279,7 +279,7 @@ public:
     }
     
     void print_stats() const {
-        MX_DEBUG_PRINT("OrderPool Stats:");
+        MX_DEBUG_PRINT("%s", "OrderPool Stats:");
         MX_DEBUG_PRINT("  Active orders: %zu", active_order_count());
         MX_DEBUG_PRINT("  Pool capacity: %zu", pool_capacity());
         MX_DEBUG_PRINT("  Pool allocated: %zu", pool_allocated());
