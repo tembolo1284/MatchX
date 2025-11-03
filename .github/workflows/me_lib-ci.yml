@@ -23,6 +23,10 @@ jobs:
           - os: macos-latest
             compiler: gcc
     
+    defaults:
+      run:
+        working-directory: me_lib
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -85,14 +89,18 @@ jobs:
       with:
         name: matchengine-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.config }}
         path: |
-          build/bin/${{ matrix.config }}/libMatchEngine.*
-          build/bin/${{ matrix.config }}/*Example
-          build/bin/${{ matrix.config }}/Benchmark
+          me_lib/build/bin/${{ matrix.config }}/libMatchEngine.*
+          me_lib/build/bin/${{ matrix.config }}/*Example
+          me_lib/build/bin/${{ matrix.config }}/Benchmark
         retention-days: 7
 
   sanitizers:
     name: Sanitizer Checks (Ubuntu)
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: me_lib
     
     strategy:
       matrix:
@@ -127,6 +135,10 @@ jobs:
     name: Performance Benchmark
     runs-on: ubuntu-latest
     
+    defaults:
+      run:
+        working-directory: me_lib
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -155,6 +167,10 @@ jobs:
     name: Code Quality Checks
     runs-on: ubuntu-latest
     
+    defaults:
+      run:
+        working-directory: me_lib
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -176,6 +192,10 @@ jobs:
   documentation:
     name: Documentation Build
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: me_lib
     
     steps:
     - name: Checkout code
