@@ -654,9 +654,14 @@ void OrderBook::remove_from_book(Order* order) {
     
     PriceLevel* level = get_level(order->side(), order->price());
     if (level) {
-        level->remove_order(order);
+        // Only try to remove from level if order is actually linked
+        // (it might have been removed already by matching logic)
+        if (order->is_linked()) {
+            level->remove_order(order);
+        }
         
-        // Remove level if empty
+        // Always clean up empty levels and update best prices
+        // even if the order was already unlinked
         remove_level_if_empty(order->side(), order->price());
         
         // Update best prices if needed
