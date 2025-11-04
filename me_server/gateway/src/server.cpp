@@ -25,11 +25,42 @@ using namespace matching::protocol;
 std::atomic<bool> g_running(true);
 
 // =============================================================================
+// USAGE & VERSION
+// =============================================================================
+
+void print_usage(const char* program) {
+    std::cout << "========================================\n"
+              << "   GATEWAY SERVER v1.0\n"
+              << "========================================\n\n"
+              << "Usage: " << program << " [OPTIONS] [port] [engine_socket]\n\n"
+              << "Arguments:\n"
+              << "  port             TCP port to listen on (default: 8080)\n"
+              << "  engine_socket    Path to engine's Unix socket\n"
+              << "                   (default: /tmp/matching_engine.sock)\n\n"
+              << "Options:\n"
+              << "  -h, --help       Show this help message\n"
+              << "  -v, --version    Show version information\n\n"
+              << "Examples:\n"
+              << "  " << program << " 8080 /tmp/engine.sock\n"
+              << "  " << program << " 9000\n"
+              << "  " << program << " --version\n"
+              << std::endl;
+}
+
+void print_version() {
+    std::cout << "Gateway Server v1.0.0\n"
+              << "Build: " << __DATE__ << " " << __TIME__ << "\n"
+              << "Copyright (c) 2024\n"
+              << std::endl;
+}
+
+// =============================================================================
 // SIGNAL HANDLERS
 // =============================================================================
 
 void signal_handler(int signal) {
-    std::cout << "\n[Gateway] Received signal " << signal << ", shutting down..." << std::endl;
+    (void)signal;
+    std::cout << "\n[Gateway] Received signal, shutting down..." << std::endl;
     g_running = false;
 }
 
@@ -499,22 +530,38 @@ private:
 // =============================================================================
 
 int main(int argc, char* argv[]) {
+    // Parse command line arguments
+    int port = 8080;
+    std::string engine_socket = "/tmp/matching_engine.sock";
+    
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            return 0;
+        }
+        
+        if (arg == "--version" || arg == "-v") {
+            print_version();
+            return 0;
+        }
+        
+        // First non-flag argument is port
+        if (arg[0] != '-' && i == 1) {
+            port = std::atoi(arg.c_str());
+        }
+        // Second non-flag argument is socket path
+        else if (arg[0] != '-' && i == 2) {
+            engine_socket = arg;
+        }
+    }
+    
     std::cout << "========================================" << std::endl;
     std::cout << "   GATEWAY SERVER v1.0" << std::endl;
     std::cout << "========================================\n" << std::endl;
     
     setup_signal_handlers();
-    
-    // Configuration
-    int port = 8080;
-    std::string engine_socket = "/tmp/matching_engine.sock";
-    
-    if (argc > 1) {
-        port = std::atoi(argv[1]);
-    }
-    if (argc > 2) {
-        engine_socket = argv[2];
-    }
     
     std::cout << "[Gateway] Configuration:" << std::endl;
     std::cout << "  Port: " << port << std::endl;

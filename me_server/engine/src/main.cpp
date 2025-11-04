@@ -22,11 +22,40 @@ std::atomic<bool> g_running(true);
 OrderManager* g_order_manager = nullptr;
 
 // =============================================================================
+// USAGE & VERSION
+// =============================================================================
+
+void print_usage(const char* program) {
+    std::cout << "========================================\n"
+              << "   MATCHING ENGINE v1.0\n"
+              << "========================================\n\n"
+              << "Usage: " << program << " [OPTIONS] [socket_path]\n\n"
+              << "Arguments:\n"
+              << "  socket_path      Unix domain socket path for IPC\n"
+              << "                   (default: /tmp/matching_engine.sock)\n\n"
+              << "Options:\n"
+              << "  -h, --help       Show this help message\n"
+              << "  -v, --version    Show version information\n\n"
+              << "Examples:\n"
+              << "  " << program << " /tmp/engine.sock\n"
+              << "  " << program << " --version\n"
+              << std::endl;
+}
+
+void print_version() {
+    std::cout << "Matching Engine v1.0.0\n"
+              << "Build: " << __DATE__ << " " << __TIME__ << "\n"
+              << "Copyright (c) 2024\n"
+              << std::endl;
+}
+
+// =============================================================================
 // SIGNAL HANDLERS
 // =============================================================================
 
 void signal_handler(int signal) {
-    std::cout << "\n[Engine] Received signal " << signal << ", shutting down..." << std::endl;
+    (void)signal;
+    std::cout << "\n[Engine] Received signal, shutting down..." << std::endl;
     g_running = false;
 }
 
@@ -286,18 +315,34 @@ void run_statistics_reporter(OrderManager& manager) {
 // =============================================================================
 
 int main(int argc, char* argv[]) {
+    // Parse command line arguments
+    std::string socket_path = "/tmp/matching_engine.sock";
+    
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            return 0;
+        }
+        
+        if (arg == "--version" || arg == "-v") {
+            print_version();
+            return 0;
+        }
+        
+        // If it's not a flag, treat it as socket path
+        if (arg[0] != '-') {
+            socket_path = arg;
+        }
+    }
+    
     std::cout << "========================================" << std::endl;
     std::cout << "   MATCHING ENGINE v1.0" << std::endl;
     std::cout << "========================================\n" << std::endl;
     
     // Setup signal handlers
     setup_signal_handlers();
-    
-    // Configuration
-    std::string socket_path = "/tmp/matching_engine.sock";
-    if (argc > 1) {
-        socket_path = argv[1];
-    }
     
     // Create order manager
     OrderManager manager;
