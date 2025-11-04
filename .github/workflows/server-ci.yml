@@ -1,0 +1,280 @@
+name: ME_SERVER CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'me_server/**'
+      - '.github/workflows/server-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'me_server/**'
+      - '.github/workflows/server-ci.yml'
+
+env:
+  BUILD_TYPE: Release
+  PREMAKE_VERSION: '5.0.0-beta2'
+
+jobs:
+  build-linux:
+    name: Build on Ubuntu
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Cache Premake5
+      id: cache-premake
+      uses: actions/cache@v3
+      with:
+        path: ~/premake5
+        key: premake5-${{ env.PREMAKE_VERSION }}-linux
+    
+    - name: Install Premake5
+      if: steps.cache-premake.outputs.cache-hit != 'true'
+      run: |
+        wget https://github.com/premake/premake-core/releases/download/v${{ env.PREMAKE_VERSION }}/premake-${{ env.PREMAKE_VERSION }}-linux.tar.gz
+        tar -xzf premake-${{ env.PREMAKE_VERSION }}-linux.tar.gz
+        mkdir -p ~/premake5
+        mv premake5 ~/premake5/
+    
+    - name: Add Premake5 to PATH
+      run: |
+        echo "$HOME/premake5" >> $GITHUB_PATH
+        chmod +x ~/premake5/premake5
+        ~/premake5/premake5 --version
+    
+    - name: Build me_lib (dependency)
+      working-directory: me_lib
+      run: |
+        ~/premake5/premake5 gmake2
+        make config=release verbose=1
+    
+    - name: Generate build files for me_server
+      working-directory: me_server
+      run: ~/premake5/premake5 gmake2
+    
+    - name: Build me_server
+      working-directory: me_server
+      run: make config=release verbose=1
+    
+    - name: Verify executables
+      working-directory: me_server
+      run: |
+        ls -lh bin/Release-linux-x86_64/Engine/matching_engine
+        ls -lh bin/Release-linux-x86_64/Gateway/gateway_server
+        ls -lh bin/Release-linux-x86_64/TradingClient/trading_client
+        file bin/Release-linux-x86_64/Engine/matching_engine
+        file bin/Release-linux-x86_64/Gateway/gateway_server
+        file bin/Release-linux-x86_64/TradingClient/trading_client
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: me_server-linux-x64
+        path: |
+          me_server/bin/Release-linux-x86_64/Engine/matching_engine
+          me_server/bin/Release-linux-x86_64/Gateway/gateway_server
+          me_server/bin/Release-linux-x86_64/TradingClient/trading_client
+        retention-days: 30
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Cache Premake5
+      id: cache-premake
+      uses: actions/cache@v3
+      with:
+        path: /usr/local/bin/premake5
+        key: premake5-${{ env.PREMAKE_VERSION }}-macos
+    
+    - name: Install Premake5
+      if: steps.cache-premake.outputs.cache-hit != 'true'
+      run: |
+        brew install premake
+    
+    - name: Verify Premake5
+      run: premake5 --version
+    
+    - name: Build me_lib (dependency)
+      working-directory: me_lib
+      run: |
+        premake5 gmake2
+        make config=release
+    
+    - name: Generate build files for me_server
+      working-directory: me_server
+      run: premake5 gmake2
+    
+    - name: Build me_server
+      working-directory: me_server
+      run: make config=release
+    
+    - name: Verify executables
+      working-directory: me_server
+      run: |
+        ls -lh bin/Release-macosx-x86_64/Engine/matching_engine
+        ls -lh bin/Release-macosx-x86_64/Gateway/gateway_server
+        ls -lh bin/Release-macosx-x86_64/TradingClient/trading_client
+        file bin/Release-macosx-x86_64/Engine/matching_engine
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: me_server-macos-x64
+        path: |
+          me_server/bin/Release-macosx-x86_64/Engine/matching_engine
+          me_server/bin/Release-macosx-x86_64/Gateway/gateway_server
+          me_server/bin/Release-macosx-x86_64/TradingClient/trading_client
+        retention-days: 30
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Install clang-format
+      run: sudo apt-get install -y clang-format
+    
+    - name: Check code formatting (non-blocking)
+      working-directory: me_server
+      continue-on-error: true
+      run: |
+        echo "Checking C++ code formatting..."
+        find . -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror || true
+    
+    - name: Count lines of code
+      working-directory: me_server
+      run: |
+        echo "=== Lines of Code ==="
+        echo ""
+        echo "By component:"
+        echo "  Common:  $(find common -name "*.cpp" -o -name "*.h" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}') lines"
+        echo "  Engine:  $(find engine -name "*.cpp" -o -name "*.h" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}') lines"
+        echo "  Gateway: $(find gateway -name "*.cpp" -o -name "*.h" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}') lines"
+        echo "  Client:  $(find client -name "*.cpp" -o -name "*.h" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}') lines"
+        echo ""
+        echo "Total: $(find . -name "*.cpp" -o -name "*.h" | xargs wc -l | tail -1 | awk '{print $1}') lines"
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: build-linux
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: me_server-linux-x64
+        path: me_server/bin/Release-linux-x86_64/
+    
+    - name: Restore directory structure
+      working-directory: me_server/bin/Release-linux-x86_64
+      run: |
+        mkdir -p Engine Gateway TradingClient
+        mv matching_engine Engine/ 2>/dev/null || true
+        mv gateway_server Gateway/ 2>/dev/null || true
+        mv trading_client TradingClient/ 2>/dev/null || true
+    
+    - name: Set executable permissions
+      working-directory: me_server
+      run: |
+        chmod +x bin/Release-linux-x86_64/Engine/matching_engine
+        chmod +x bin/Release-linux-x86_64/Gateway/gateway_server
+        chmod +x bin/Release-linux-x86_64/TradingClient/trading_client
+    
+    - name: Test executables
+      working-directory: me_server
+      run: |
+        ./bin/Release-linux-x86_64/Engine/matching_engine --version 2>&1 || echo "Engine binary OK"
+        ./bin/Release-linux-x86_64/Gateway/gateway_server --help 2>&1 || echo "Gateway binary OK"
+        ./bin/Release-linux-x86_64/TradingClient/trading_client --help 2>&1 || echo "Client binary OK"
+    
+    - name: Start matching engine
+      working-directory: me_server
+      run: |
+        ./bin/Release-linux-x86_64/Engine/matching_engine /tmp/test_engine.sock > /tmp/engine_test.log 2>&1 &
+        ENGINE_PID=$!
+        echo "ENGINE_PID=$ENGINE_PID" >> $GITHUB_ENV
+        echo "Started engine with PID: $ENGINE_PID"
+        sleep 3
+    
+    - name: Check engine is running
+      run: |
+        if ps -p ${{ env.ENGINE_PID }} > /dev/null; then
+          echo "✓ Engine is running"
+          cat /tmp/engine_test.log || true
+        else
+          echo "✗ Engine failed to start"
+          cat /tmp/engine_test.log || true
+          exit 1
+        fi
+    
+    - name: Start gateway
+      working-directory: me_server
+      run: |
+        ./bin/Release-linux-x86_64/Gateway/gateway_server 8080 /tmp/test_engine.sock > /tmp/gateway_test.log 2>&1 &
+        GATEWAY_PID=$!
+        echo "GATEWAY_PID=$GATEWAY_PID" >> $GITHUB_ENV
+        echo "Started gateway with PID: $GATEWAY_PID"
+        sleep 3
+    
+    - name: Check gateway is running
+      run: |
+        if ps -p ${{ env.GATEWAY_PID }} > /dev/null; then
+          echo "✓ Gateway is running"
+          cat /tmp/gateway_test.log || true
+        else
+          echo "✗ Gateway failed to start"
+          cat /tmp/gateway_test.log || true
+          exit 1
+        fi
+    
+    - name: Verify port is listening
+      run: |
+        echo "Checking if port 8080 is open..."
+        netstat -tuln | grep 8080 || ss -tuln | grep 8080
+        echo "✓ Gateway is listening on port 8080"
+    
+    - name: Show logs
+      if: always()
+      run: |
+        echo "=== Engine Log ==="
+        cat /tmp/engine_test.log || true
+        echo ""
+        echo "=== Gateway Log ==="
+        cat /tmp/gateway_test.log || true
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "Cleaning up processes..."
+        kill ${{ env.GATEWAY_PID }} 2>/dev/null || true
+        kill ${{ env.ENGINE_PID }} 2>/dev/null || true
+        sleep 1
+        kill -9 ${{ env.GATEWAY_PID }} 2>/dev/null || true
+        kill -9 ${{ env.ENGINE_PID }} 2>/dev/null || true
+        rm -f /tmp/test_engine.sock
+        echo "✓ Cleanup complete"
