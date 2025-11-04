@@ -23,7 +23,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
     
@@ -34,7 +34,7 @@ jobs:
     
     - name: Cache Premake5
       id: cache-premake
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/premake5
         key: premake5-${{ env.PREMAKE_VERSION }}-linux
@@ -57,6 +57,7 @@ jobs:
       working-directory: me_lib
       run: |
         ~/premake5/premake5 gmake2
+        cd build
         make config=release verbose=1
     
     - name: Generate build files for me_server
@@ -64,7 +65,7 @@ jobs:
       run: ~/premake5/premake5 gmake2
     
     - name: Build me_server
-      working-directory: me_server
+      working-directory: me_server/build
       run: make config=release verbose=1
     
     - name: Verify executables
@@ -78,7 +79,7 @@ jobs:
         file bin/Release-linux-x86_64/TradingClient/trading_client
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: me_server-linux-x64
         path: |
@@ -93,13 +94,13 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
     
     - name: Cache Premake5
       id: cache-premake
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: /usr/local/bin/premake5
         key: premake5-${{ env.PREMAKE_VERSION }}-macos
@@ -116,6 +117,7 @@ jobs:
       working-directory: me_lib
       run: |
         premake5 gmake2
+        cd build
         make config=release
     
     - name: Generate build files for me_server
@@ -123,7 +125,7 @@ jobs:
       run: premake5 gmake2
     
     - name: Build me_server
-      working-directory: me_server
+      working-directory: me_server/build
       run: make config=release
     
     - name: Verify executables
@@ -135,7 +137,7 @@ jobs:
         file bin/Release-macosx-x86_64/Engine/matching_engine
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: me_server-macos-x64
         path: |
@@ -150,7 +152,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Install clang-format
       run: sudo apt-get install -y clang-format
@@ -182,10 +184,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Download artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: me_server-linux-x64
         path: me_server/bin/Release-linux-x86_64/
@@ -193,10 +195,32 @@ jobs:
     - name: Restore directory structure
       working-directory: me_server/bin/Release-linux-x86_64
       run: |
+        # v4 flattens the structure, so we need to recreate it
         mkdir -p Engine Gateway TradingClient
-        mv matching_engine Engine/ 2>/dev/null || true
-        mv gateway_server Gateway/ 2>/dev/null || true
-        mv trading_client TradingClient/ 2>/dev/null || true
+        
+        # Move executables to proper directories
+        if [ -f matching_engine ]; then
+          mv matching_engine Engine/
+        elif [ -f Engine/matching_engine ]; then
+          echo "Engine already in correct location"
+        fi
+        
+        if [ -f gateway_server ]; then
+          mv gateway_server Gateway/
+        elif [ -f Gateway/gateway_server ]; then
+          echo "Gateway already in correct location"
+        fi
+        
+        if [ -f trading_client ]; then
+          mv trading_client TradingClient/
+        elif [ -f TradingClient/trading_client ]; then
+          echo "Client already in correct location"
+        fi
+        
+        # Verify structure
+        ls -la Engine/
+        ls -la Gateway/
+        ls -la TradingClient/
     
     - name: Set executable permissions
       working-directory: me_server
